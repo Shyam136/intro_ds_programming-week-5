@@ -52,41 +52,35 @@ def load_titanic(candidates: Iterable[str] | None = None) -> pd.DataFrame:
     import seaborn as sns
     return sns.load_dataset("titanic")
 
-def load_titanic(candidates: Iterable[str] | None = None) -> pd.DataFrame:
+def _norm_cols(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Prefer a local Kaggle-style CSV with a Name column; only fall back to seaborn if nothing found.
+    Normalize to ensure BOTH Kaggle-style TitleCase and seaborn-style lowercase columns exist.
     """
-    if candidates is None:
-        candidates = (
-            # common grader paths
-            "data/train.csv", "./data/train.csv", "../data/train.csv",
-            "train.csv", "./train.csv", "../train.csv",
-            "data/titanic.csv", "./data/titanic.csv", "../data/titanic.csv",
-            "data/titanic_train.csv", "./data/titanic_train.csv", "../data/titanic_train.csv",
-            # occasionally nested
-            "titanic/train.csv", "./titanic/train.csv", "../titanic/train.csv",
-            "../input/titanic/train.csv",
-        )
+    out = df.copy()
 
-    # try explicit candidates
-    for p in candidates:
-        if Path(p).is_file():
-            return pd.read_csv(p)
+    # seaborn -> Kaggle titles (if needed)
+    title_from_lower = {
+        "survived": "Survived",
+        "pclass": "Pclass",
+        "sex": "Sex",
+        "age": "Age",
+        "sibsp": "SibSp",
+        "parch": "Parch",
+        "fare": "Fare",
+        "embarked": "Embarked",
+        "class": "Pclass",   # rarely used; keep Pclass as numeric if available
+        "who": "Sex",        # not used, but avoid collisions
+    }
+    for low, title in title_from_lower.items():
+        if low in out.columns and title not in out.columns:
+            out[title] = out[low]
 
-    # tiny glob pass in common data dirs
-    for root in (Path("."), Path(".."), Path("./data"), Path("../data")):
-        hits = list(root.glob("**/*titanic*/*.csv")) + list(root.glob("**/*train*.csv")) + list(root.glob("**/*titanic*.csv"))
-        for h in hits:
-            try:
-                df = pd.read_csv(h)
-                if "Name" in df.columns:  # prefer a Kaggle-like file
-                    return df
-            except Exception:
-                pass
+    # also guarantee lowercase mirrors exist
+    for title in ["Survived", "Pclass", "Sex", "Age", "SibSp", "Parch", "Fare", "Name"]:
+        if title in out.columns and title.lower() not in out.columns:
+            out[title.lower()] = out[title]
 
-    # fallback: seaborn (no Name column)
-    import seaborn as sns
-    return sns.load_dataset("titanic")
+    return out
 
 # -----------------------------
 # Exercise 1 — Demographics
